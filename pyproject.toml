@@ -1,0 +1,25 @@
+[build-system]
+requires = ["setuptools >= 61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "guiagents"
+version = "0.0.1"
+dependencies = [
+]
+requires-python = ">=3.11"
+authors = [
+  {name = "Edvin Maid", email = "emaid@logitech.com"},
+]
+description = "Project dedicated to running benchmarks of agents on different datasets for the Controling Computer with Language project."
+readme = "README.md"
+keywords = ["thesis", "llmagents"]
+classifiers = [
+    "Private :: Do Not Upload"
+]
+
+[project.urls]
+Repository = "https://github.com/LogiEdvvin/gui_benchmarks.git"
+
+[project.scripts]
+# guiagents-cli = "guiagents:main_cli"

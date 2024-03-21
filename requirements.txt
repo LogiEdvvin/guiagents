@@ -1,0 +1,22 @@
+ipython
+jupyter
+notebook
+matplotlib
+pandas
+seaborn
+plotly
+numpy
+tqdm
+scipy
+
+--extra-index-url https://download.pytorch.org/whl/cu118
+torch
+torchvision
+torchaudio
+
+#huggingface
+#transfomers
+#transformer_stream_generator
+#einops
+#accelerate
+#tiktoken

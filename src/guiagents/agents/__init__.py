@@ -1,0 +1,1 @@
+from .seeclick import SeeClickAgent
