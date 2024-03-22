@@ -1,14 +1,22 @@
+import yaml
+import logging
+import logging.config
+
+with open("../logging_config.yaml", "r") as log_conf_file:
+    log_conf = yaml.safe_load(log_conf_file.read())
+logging.config.dictConfig(log_conf)
+
 import json
 import os
 from tqdm import tqdm
 import click
-import importlib
-import logging
 from datetime import datetime
-from guiagents.agents import SeeClickAgent
 from PIL import Image
+from guiagents.agents import SeeClickAgent
 
-logger = logging.getLogger(__name__)
+results_path = "./results.json"
+data_path = "../data/mind2web/"
+mind2web_imgs_dir = os.path.join(data_path, "screenshots")
 
 @click.group(chain=True, invoke_without_command=True)
 @click.option('--agent', '-a', multiple=True, type=str, help='Add an agent to be benchmarked if no agents provided then all will be used')
@@ -19,13 +27,14 @@ def benchmark(ctx, agent):
     ctx.obj['experiment_tag'] = f"benchmark_{timestamp}"
     ctx.obj['agents'] = []
 
+
 @benchmark.command('m2w')
 @click.option('--across', type=click.Choice(['task', 'website', 'domain', 'all']), default='all')
 @click.pass_context
 def mind2web(ctx, across):
+    logger = logging.getLogger(__name__ + ".mind2web")
 
     # LOAD DATASET
-    data_path = "../data/mind2web/"
 
     if(across == 'all'):
         across = ['task', 'website', 'domain']
@@ -41,9 +50,11 @@ def mind2web(ctx, across):
 
     results = []
 
-    for sect, episode in tqdm(m2w_data[:2]):
+    ep_num = 0
+
+    for sect, episode in tqdm(m2w_data):
         task_desc = episode['confirmed_task']
-        episode_id = episode['annotaion_id']
+        episode_id = episode['annotation_id']
         session = agent.create_session_from_task(task=task_desc)
 
         for step_num, step in enumerate(episode['actions']):
@@ -85,7 +96,7 @@ def mind2web(ctx, across):
                 "test_data_section": sect,
                 "task": task_desc,
                 "pred_action_type": agent_action['type'],
-                "pred_action_value": agent_action['value'],
+                "pred_action_value": agent_action.get('value', None),
                 "pred_action_location": agent_action['x'],
                 "pred_action_location": agent_action['y'],
                 "ref_action_type": step['operation']['op'],
@@ -98,10 +109,22 @@ def mind2web(ctx, across):
 
             results.append(step_result)
 
-            agent.perform_action(session, action) # apply action to session
-
-    with open("./results.json") as res_file:
-        json.dump(results, res_file)
+            agent.perform_action(session, ref_action) # apply action to session
+        
+        ep_num += 1
+        if ep_num % 10 == 0:
+            if (os.path.exists("./results.json")):
+                with open("./results.json", "r") as res_file:
+                    old_results = json.load(res_file)
+                
+                old_results.append(results)
+            else:
+                old_results = results
+            
+            with open("./results.json", "w") as res_file:
+                json.dump(old_results, res_file)
+        
+        results = []
             
 
 if __name__ == "__main__":

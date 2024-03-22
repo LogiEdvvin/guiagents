@@ -1,4 +1,3 @@
-import json
 from transformers import AutoModelForCausalLM, AutoTokenizer
 from transformers.generation import GenerationConfig
 import ast
@@ -21,10 +20,11 @@ class SeeClickAgent:
         device = "cuda" if torch.cuda.is_available() else "cpu"
         self.seeclick = AutoModelForCausalLM.from_pretrained(seeclick_path, device_map=device, trust_remote_code=True, bf16=True).eval()
         self.seeclick.generation_config = GenerationConfig.from_pretrained(qwen_path, trust_remote_code=True)
+        logger.info(type(self.seeclick))
 
-    def create_session_from_task(self, task_desc):
+    def create_session_from_task(self, task):
         return {
-            "task": task_desc,
+            "task": task,
             "actions_taken": [],
         }
 
@@ -41,14 +41,21 @@ class SeeClickAgent:
 
         previous_step = ""
         for i, action in enumerate(session['actions_taken'][-4:]):
-            click_point = f"({action['x']/screenshot.size[0]},{action['y']/screenshot.size[1]})"
-            action_step = f"{{\"action_type\": {action['type']}, \"click_point\": {click_point}, \"value\": \"{action['value']}\"}}"
-            previous_step += 'Step' + str(i) + ': ' + action_step + ". "
+            click_point = f"({action['x']/screenshot.size[0]:.2f},{action['y']/screenshot.size[1]:.2f})"
+            value = action['value']
+            if action['type'] in ['CLICK', 'HOVER', 'ENTER']:
+                action_step = "{{\"action_type\": {}, \"click_point\": {}}}".format(4, click_point)
+            elif action['type'] == 'SELECT':
+                action_step = "{{\"action_type\": {}, \"click_point\": {}, \"value\": \"{}\"}}".format(2, click_point, value)
+            elif action['type'] == 'TYPE':
+                action_step = "{{\"action_type\": {}, \"click_point\": {}, \"value\": \"{}\"}}".format(3, click_point, value)
+
+            previous_step += 'Step ' + str(i) + ': ' + action_step + ". "
 
         prompt_template = "Please generate the next move according to the ui screenshot, instruction and previous actions. Instruction: {}. Previous actions: {}"
         prompt = prompt_template.format(session['task'], previous_step)
 
-        query = tokenizer.from_list_format(
+        query = self.tokenizer.from_list_format(
             [{'image': screenshot_path}, {'text': prompt}, ]
         )
 
@@ -56,13 +63,42 @@ class SeeClickAgent:
             response, history = self.seeclick.chat(self.tokenizer, query=query, history=None)
         
         try:
-            ast.literal_eval(response)
-        except:
-            logging.warning(f"Agent could not parse LLM output: {response}")
+            action_original = ast.literal_eval(response)
+            
+            if action_original['action_type'] == 4:
+                action = {
+                    "type": "CLICK",
+                    "x": action_original["click_point"][0],
+                    "y": action_original["click_point"][1],
+                }
+            elif action_original['action_type'] == 3:
+                action = {
+                    "type": "SELECT",
+                    "value": action_original["value"],
+                    "x": action_original["click_point"][0],
+                    "y": action_original["click_point"][1],
+                }
+            elif action_original['action_type'] == 2:
+                action = {
+                    "type": "TYPE",
+                    "value": action_original["value"],
+                    "x": action_original["click_point"][0],
+                    "y": action_original["click_point"][1],
+                }
+        except Exception as e:
+            logger.warning(f"Agent could not parse LLM output: {response}")
+            print(e)
+            action = {
+                "type": None,
+                "value": None,
+                "x": None,
+                "y": None
+            }
+            
 
         return action
     
     def perform_action(self, session, action, **kwargs):
-        self.session['actions_taken'].append(
+        session['actions_taken'].append(
             action
         )
