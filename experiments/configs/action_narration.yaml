@@ -1,0 +1,45 @@
+data:
+  data_dir: ..\data\my_screen_recordings
+  extensions:
+  - .mp4
+  metadata_file: metadata.json
+prompt:
+  action_set:
+    double_click: Double clicking with the mouse. Usually happens when the cursor
+      is close to a clickable object on the screen that could explain the change of
+      image. However, this form of clicking is rare when navigating the web and more
+      common for opening files on an Operating System's GUI.
+    drag_drop: Clicking, holding and then moving the mouse to a desired location and
+      dropping. Usually happens when a "dragable" object is moving with the cursor
+      or has moved to a different location. More common outside of web applications.
+    hover: Keeping a cursor for several seconds above an object on the screen. Usually
+      happens when a box shows up around the cursor with more context information.
+    key_bindings: Special keyboard shortcuts that are not visible directly on the
+      screen. Usually happens when something happens on the screen but is not explainable
+      using the cursor.
+    left_click: Left clicking with the mouse. Usually happens when the cursor is close
+      to a clickable object on the screen that could explain the change of the image.
+    right_click: Right clicking with the mouse. Usually happens when the a context
+      menu opens up that gives you more options for the clickable object close to
+      the cursor
+    scroll: Spinning the scroll wheel on the mouse or arrow keys on the keyboard.
+      Usually happens when the screen is panning/scrolling upwards or downwards
+    select: Clicking and expanding a selection region. This usually happens when a
+      coloured region in the shape of a rectangle or following text expands in way
+      that it follows the cursor
+    type: Typing text in a typable field. Usually happens when text begins trailing
+      a caret (the vertical line that the cursor turns into when typing).
+    wait: This means do nothing. If the screen seems to be loading the first page
+      then most likely the only thing needed to do was to wait.
+  few_shot_examples:
+  - Type 'john.doe@mail.com' in the text field below the 'e-mail' label. <type> Type
+    'pass1234' in the password text field. <type> Click on the log-in button <left_click>
+  - Right click anywhere on the desktop. <right_click>. Hover over the 'New' button.
+    <hover> Click on the button with a little folder icon <left_click>. Type "work"
+    as the folder name. <type> Press enter to exit typing. <key_bindings>
+  - Drag the folder named "homework" into the recycle bin. <drag_drop>
+  img_processor: default_img_processor
+run:
+  run_description: ''
+  store_dir: ..\data\results\action_narration
+  tag: initial
