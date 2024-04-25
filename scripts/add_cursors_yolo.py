@@ -4,7 +4,7 @@ import random
 import glob
 from PIL import CurImagePlugin, Image
 import click
-from torch.utils.data import Dataset, DataLoader, Subset
+from torch.utils.data import Dataset, Subset
 import pandas as pd
 import numpy as np
 import yaml
@@ -86,73 +86,85 @@ class ScreenDataset(Dataset):
 
     def __len__(self):
         return(len(self.screen_names))
-    
+
 
 @click.command()
 @click.argument('cursors', type=click.Path(exists=True, file_okay=False, dir_okay=True))
-@click.argument('screens_data', type=click.Path())
+@click.argument('data_path', type=click.Path(exists=True, file_okay=True, dir_okay=False))
 @click.argument('dst', type=click.Path(exists=True, writable=True, file_okay=False, dir_okay=True))
-@click.option('--num', type=int, default=100)
+@click.option('--num_train', type=int, default=100)
+@click.option('--num_val', type=int, default=50)
+@click.option('--num_test', type=int, default=50)
 @click.option('--rand_seed', type=int, default=1234)
-@click.option('--copy/--cut', default=True)
-def script(cursors, screens_data, dst, num, rand_seed, copy):
+def script(cursors, data_path, dst, num_train, num_val, num_test, rand_seed):
     random.seed(rand_seed)
-    images_path = os.path.join(dst, 'images')
-    if not os.path.exists(images_path):
-        os.makedirs(images_path)
-
-    labels_path = os.path.join(dst, 'labels')
-    if not os.path.exists(labels_path):
-        os.makedirs(labels_path)
     
-    if not os.path.exists(os.path.join(dst, 'gravity.yaml')):
-        if not os.path.exists(os.path.join(screens_data, 'gravity.yaml')):
-            raise ValueError('Specified screens_data directory does not have a gravity.yaml file. Not valid dataset.')
-        shutil.copy(os.path.join(screens_data, 'gravity.yaml'), dst)
-    
-    with open(os.path.join(dst, 'gravity.yaml'), 'r') as file:
+    with open(data_path, 'r') as file:
         data_config = yaml.safe_load(file)
     
     if 'cursor' not in data_config['names']:
         data_config['names'].append('cursor')
         data_config['nc'] += 1
-        with open(os.path.join(dst, 'gravity.yaml'), 'w') as file:
-            yaml.dump(data_config, file)
-
 
     # TODO Yaml file has the train, test, validation section maybe remove or something?
     new_class=data_config['names'].index('cursor')
 
     cursor_set = CursorSet(cursors)
 
-    data = ScreenDataset(screens_data)
-    subset_indicies = sorted(random.sample(range(len(data)), num))
-    data = Subset(data, indices=subset_indicies)
+    num = {
+        "train": num_train,
+        "val": num_val,
+        "test": num_test,
+    }
 
-    data_loader = DataLoader(data, batch_size=1)
+    for section in ['train', 'val', 'test']:
+        section_path = data_config.get(section, None)
+        if not section_path:
+            continue
+        if not os.path.isabs(section_path):
+            section_path = os.path.join(os.path.dirname(data_path), section_path)
+        if not os.path.exists(section_path):
+            raise ValueError(f"Data configuration file given in {data_path} does not contain an existing {section} path {section_path}")
+        data = ScreenDataset(section_path)
+        subset_indicies = sorted(random.sample(range(len(data)), num[section]))
+        data = Subset(data, indices=subset_indicies)
 
-    for screen, bboxes, img_path, label_path in data:
+        section_dst = os.path.join(dst, section)
+        os.makedirs(section_dst, exist_ok=True)
 
-        random_bbox, cur_img = generate_cursor_bbox(screen, bboxes, cursor_set)
+        images_path = os.path.join(section_dst, 'images')
+        if not os.path.exists(images_path):
+            os.makedirs(images_path)
 
-        x, y, w, h = random_bbox
+        labels_path = os.path.join(section_dst, 'labels')
+        if not os.path.exists(labels_path):
+            os.makedirs(labels_path)
 
-        position = (int(x*screen.size[0]), int(y*screen.size[1]))
+        for screen, bboxes, img_path, label_path in data:
 
-        new_screen, _ = place_cursor(cur_img, screen, position)
+            random_bbox, cur_img = generate_cursor_bbox(screen, bboxes, cursor_set)
 
-        # Yolo uses mid points as positions
-        bboxes.loc[len(bboxes)] = {"class": new_class, "x": x+w/2, "y": y+h/2, 'w': w, 'h': h}
+            x, y, w, h = random_bbox
 
-        bboxes.to_csv(os.path.join(dst, 'labels', os.path.basename(label_path)), sep=' ', index=False, header=False)
+            position = (int(x*screen.size[0]), int(y*screen.size[1]))
 
-        img_ext = os.path.splitext(img_path)[1]
+            new_screen, _ = place_cursor(cur_img, screen, position)
 
-        if img_ext == '.jpg':
-            new_screen.convert('RGB').save(os.path.join(dst, 'images', os.path.basename(img_path)))
-        else:
-            new_screen.save(os.path.join(dst, 'images', os.path.basename(img_path)))
-        
+            # Yolo uses mid points as positions
+            bboxes.loc[len(bboxes)] = {"class": new_class, "x": x+w/2, "y": y+h/2, 'w': w, 'h': h}
+
+            bboxes.to_csv(os.path.join(section_dst, 'labels', os.path.basename(label_path)), sep=' ', index=False, header=False)
+
+            img_ext = os.path.splitext(img_path)[1]
+
+            if img_ext == '.jpg':
+                new_screen.convert('RGB').save(os.path.join(section_dst, 'images', os.path.basename(img_path)))
+            else:
+                new_screen.save(os.path.join(section_dst, 'images', os.path.basename(img_path)))
+            data_config[section] = section_dst
+
+    with open(os.path.join(dst, 'gravity.yaml'), 'w') as file:
+        yaml.dump(data_config, file)
 
 
 if __name__ == "__main__":
