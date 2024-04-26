@@ -86,6 +86,24 @@ class ScreenDataset(Dataset):
 
     def __len__(self):
         return(len(self.screen_names))
+    
+    def choices(self, indicies):
+        new_names = set()
+        name_counter = dict()
+        new_exts = dict()
+        for i in indicies:
+            name = self.screen_names[i]
+            if name in new_names:
+                aug_name = name + f"_{name_counter[name]}"
+                name_counter[name] += 1
+                new_exts[aug_name] = self.img_exts[name]
+            else:
+                new_names.add(name)
+                name_counter[name] = 1
+                new_exts[aug_name] = self.img_exts[name]
+
+        self.screen_names = new_names
+        self.img_exts = new_exts
 
 
 @click.command()
@@ -95,8 +113,10 @@ class ScreenDataset(Dataset):
 @click.option('--num_train', type=int, default=100)
 @click.option('--num_val', type=int, default=50)
 @click.option('--num_test', type=int, default=50)
+@click.option('--repeat', default=False, is_flag=True)
+@click.option('--cursors_only', default=False, is_flag=True)
 @click.option('--rand_seed', type=int, default=1234)
-def script(cursors, data_path, dst, num_train, num_val, num_test, rand_seed):
+def script(cursors, data_path, dst, num_train, num_val, num_test, repeat, cursors_only, rand_seed):
     random.seed(rand_seed)
     
     with open(data_path, 'r') as file:
@@ -126,7 +146,12 @@ def script(cursors, data_path, dst, num_train, num_val, num_test, rand_seed):
         if not os.path.exists(section_path):
             raise ValueError(f"Data configuration file given in {data_path} does not contain an existing {section} path {section_path}")
         data = ScreenDataset(section_path)
-        subset_indicies = sorted(random.sample(range(len(data)), num[section]))
+
+        if repeat:
+            subset_indicies = sorted(random.choices(range(len(data)), num[section]))
+        else:
+            subset_indicies = sorted(random.sample(range(len(data)), num[section]))
+
         data = Subset(data, indices=subset_indicies)
 
         section_dst = os.path.join(dst, section)
@@ -151,9 +176,13 @@ def script(cursors, data_path, dst, num_train, num_val, num_test, rand_seed):
             new_screen, _ = place_cursor(cur_img, screen, position)
 
             # Yolo uses mid points as positions
-            bboxes.loc[len(bboxes)] = {"class": new_class, "x": x+w/2, "y": y+h/2, 'w': w, 'h': h}
+            if cursors_only:
+                cursor_bbox_df = pd.DataFrame({"class": new_class, "x": x+w/2, "y": y+h/2, 'w': w, 'h': h}, index=[0])
+                cursor_bbox_df.to_csv(os.path.join(section_dst, 'labels', os.path.basename(label_path)), sep=' ', index=False, header=False)
+            else:
+                bboxes.loc[len(bboxes)] = {"class": new_class, "x": x+w/2, "y": y+h/2, 'w': w, 'h': h}
+                bboxes.to_csv(os.path.join(section_dst, 'labels', os.path.basename(label_path)), sep=' ', index=False, header=False)
 
-            bboxes.to_csv(os.path.join(section_dst, 'labels', os.path.basename(label_path)), sep=' ', index=False, header=False)
 
             img_ext = os.path.splitext(img_path)[1]
 
