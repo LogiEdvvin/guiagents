@@ -1,6 +1,7 @@
 import os
 import yaml
 import json
+import re
 from datetime import datetime
 import base64
 from tqdm import tqdm
@@ -22,6 +23,17 @@ def default_img_processor(images):
         proc_images.append(b64_img.decode('utf-8'))
     return proc_images
 
+def parse_actions(action_text):
+    narration_pattern = r"([^<>]*<[^>]*>)"
+    action_pattern = r"<[^>]*>"
+    action_narrations = re.findall(narration_pattern, text)
+    action_tags = [re.search(action_pattern, nar)[0][1:-1] for nar in action_narrations]
+    action_narrations = [re.sub(action_pattern, "", s).strip() for s in action_narrations]
+    return list(zip(action_tags, action_narrations))
+
+def random_trajectory(num_points, vid_length):
+    return np.sort(np.choice(vid_length, num_points, replace=False))
+
 class ActionRecognitionPrompt:
     actions: Dict[str, str]
 
@@ -29,12 +41,12 @@ class ActionRecognitionPrompt:
 
         if actions:
             self.actions = actions
-        
+
         if few_shot_examples:
             self.few_shot_examples = few_shot_examples 
         else:
             self.few_shot_examples = None
-        
+
         if img_processor:
             self.img_processor = img_processor
         else:
@@ -65,7 +77,7 @@ class ActionRecognitionPrompt:
                 "content": example,
                 }
             ])
-        
+
         prompt.append(
             {
             "role": "user",
@@ -85,7 +97,7 @@ class ActionRecognitionPrompt:
 def experiment(config, api_key, checkpoint):
 
     if not config:
-        config = os.path.join("configs", f"{EXPERIMENT_NAME}.yaml")
+        config = os.path.join("..", "configs", f"{EXPERIMENT_NAME}.yaml")
     with open(config) as conf_file:
         config = yaml.safe_load(conf_file)
 
@@ -153,7 +165,6 @@ def experiment(config, api_key, checkpoint):
                 max_tokens=300,
             )
             text = response.choices[0].message.content
-            text = "test"
             screen_pair_figure(img1, img2, text, os.path.join(run_dir, f"{vid_name}_{i}_{j}.jpeg"))
 
 if __name__ == "__main__":
