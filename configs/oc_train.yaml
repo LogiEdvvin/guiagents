@@ -1,0 +1,15 @@
+run:
+  run_description: ''
+  store_dir: ..\data\results\oc_train
+  tag: initial
+data:
+  video_data_dir: ..\data\ytdata\videos
+  transcript_data_dir: ..\data\ytdata\transcripts.json
+  cursor_pos_dir: ..\data\ytdata\cursors.json
+  vid_extensions:
+  - .mp4
+  metadata_file: metadata.json
+train:
+  from_checkpoint: #Set to a run save path
+  lr: 0.001
+  w_decay: 0.01
