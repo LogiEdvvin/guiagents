@@ -3,13 +3,15 @@ run:
   store_dir: ..\data\results\oc_train
   tag: initial
 data:
-  video_data_dir: ..\data\ytdata\videos
-  transcript_data_dir: ..\data\ytdata\transcripts.json
-  cursor_pos_dir: ..\data\ytdata\cursors.json
-  vid_extensions:
-  - .mp4
-  metadata_file: metadata.json
+  meta_data_path: ..\data\youtube_dataset\video_data.json
+  videos_dir: ..\data\youtube_dataset\videos
+  transcripts_dir: ..\data\youtube_dataset\transcripts
+  mouse_tracking_dir: ..\data\youtube_dataset\mouse_tracking
+model:
+  encoder_path: ..\data\pix2struct_vision_model
 train:
   from_checkpoint: #Set to a run save path
   lr: 0.001
   w_decay: 0.01
+  epoch_num: 2
+  batch_size: 8
