@@ -15,3 +15,5 @@ train:
   w_decay: 0.01
   epoch_num: 2
   batch_size: 8
+  logging_step: 2
+  validation_step: 3

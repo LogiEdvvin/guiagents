@@ -38,15 +38,15 @@ def create_experiment_checkpoint(*,exp_name: str, exp_dir: str):
     os.makedirs(configs_dir, exist_ok=False)
     
     shutil.copy(f"{exp_name}.py", exp_dir)
-    shutil.copy(os.path.join('configs', f'{exp_name}.yaml'), configs_dir)
+    shutil.copy(os.path.join('..', 'configs', f'{exp_name}.yaml'), configs_dir)
 
-    if os.path.exists(os.path.join('configs', 'secrets.yaml')):
-        shutil.copy(os.path.join('configs', 'secrets.yaml'), configs_dir)
+    if os.path.exists(os.path.join('..', 'configs', 'secrets.yaml')):
+        shutil.copy(os.path.join('..', 'configs', 'secrets.yaml'), configs_dir)
     else:
         print(os.path.join(configs_dir, 'secrets.yaml'))
 
-    if os.path.exists(os.path.join('configs', '.gitignore')):
-        shutil.copy(os.path.join('configs', '.gitignore'), configs_dir)
+    if os.path.exists(os.path.join('..', 'configs', '.gitignore')):
+        shutil.copy(os.path.join('..', 'configs', '.gitignore'), configs_dir)
 
 def load_video_data(data_path):
     if os.path.exists(data_path):
@@ -74,9 +74,9 @@ def load_video_paths(video_download_dir):
 
 def load_mouse_tracking(mouse_tracking_dir, confidence_treshold, max_lag, frames_per_step):
     tracking_files = glob(os.path.join(mouse_tracking_dir, "*.csv"))
-    video_ids = [os.path.splitext(os.path.basename(path))[0] for path in tracking_files]
-    data = []
+    data = dict()
     for path in tracking_files:
+        video_id = os.path.splitext(os.path.basename(path))[0]
         df = pd.read_csv(path, index_col='frame').query("conf>@confidence_treshold")
         if(len(df) <= max_lag):
             continue
@@ -88,6 +88,23 @@ def load_mouse_tracking(mouse_tracking_dir, confidence_treshold, max_lag, frames
         df.loc[~df['is_subsq'], 'dx'] = None
         df['dy'] = df['y'].diff()
         df.loc[~df['is_subsq'], 'dy'] = None
-        data.append(df)
-    return dict(zip(video_ids, data))
-    
+        data[video_id] = df
+    return data
+
+def quantize_xy(xy, max_val, bin_size, mu):
+        xy = np.clip(xy, -max_val, max_val)
+        xy = xy / max_val
+        v_encode = np.sign(xy) * (np.log(1.0 + mu * np.abs(xy)) / np.log(1.0 + mu))
+        xy = v_encode * max_val
+        v_encode *= max_val
+        xy = v_encode
+
+        return np.round((xy + max_val) / bin_size).astype(np.int64)
+
+def dequantize_xy(xy, max_val, bin_size, mu):
+    xy = xy * bin_size - max_val
+    xy = xy / max_val
+    v_decode = np.sign(xy) * (1.0 / mu) * ((1.0 + mu) ** np.abs(xy) - 1.0)
+    v_decode *= max_val
+    xy = v_decode
+    return xy
